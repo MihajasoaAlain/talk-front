@@ -1,10 +1,58 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AuthHeader from "@/components/auth/AuthHeader";
 import FormField from "@/components/auth/FormField";
 import HelperCard from "@/components/auth/HelperCard";
 import Button from "@/components/ui/Button";
+import { apiPost } from "@/utils/api";
+
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+}
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
+
+    try {
+      const response = await apiPost<LoginRequest, AuthResponse>("/auth/login", {
+        email,
+        password,
+      });
+
+      localStorage.setItem("access_token", response.access_token);
+      localStorage.setItem("refresh_token", response.refresh_token);
+
+      setSuccess("Logged in successfully.");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <AuthHeader
@@ -20,7 +68,7 @@ export default function LoginPage() {
         }
       />
 
-      <form className="space-y-5">
+      <form className="space-y-5" onSubmit={onSubmit}>
         <FormField
           id="email"
           label="Email address"
@@ -51,13 +99,19 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <Button type="submit" className="w-full">
-          Sign in
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Signing in..." : "Sign in"}
         </Button>
       </form>
 
       <HelperCard>
-      Email mihajasoaalain85@gmail.com
+        {error ? (
+          <span className="text-red-600">{error}</span>
+        ) : success ? (
+          <span className="text-emerald-600">{success}</span>
+        ) : (
+          "Email mihajasoaalain85@gmail.com"
+        )}
       </HelperCard>
     </div>
   );
