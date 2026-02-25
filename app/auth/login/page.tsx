@@ -43,9 +43,10 @@ export default function LoginPage() {
 
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("refresh_token", response.refresh_token);
+      document.cookie = `access_token=${response.access_token}; path=/`;
 
       setSuccess("Logged in successfully.");
-      router.refresh();
+      router.push("/messages");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
     } finally {
