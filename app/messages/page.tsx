@@ -1,17 +1,65 @@
 'use client'
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { MOCK_CONTACTS, MOCK_MESSAGES } from '@/mockData';
 import { ChatWindow } from '@/components/ChatWidow';
 import { Sidebar } from '@/components/Sidebar';
+import { AuthLoadingScreen } from '@/components/messages/AuthLoadingScreen';
 import { cn } from '@/lib/utils';
 import { Contact, Message } from '@/types/types';
+
+const ME_ID = 'me';
+const AUTO_REPLY_DELAY_MS = 1500;
+
+const LAYOUT_CLASSES = {
+  root: 'h-dvh w-full flex bg-slate-100 overflow-hidden font-sans antialiased p-0 sm:p-2 lg:p-4',
+  shell: 'w-full h-full flex bg-white shadow-none sm:shadow-xl sm:rounded-xl lg:rounded-2xl overflow-hidden relative sm:border border-slate-200',
+  sidebarBase: 'h-full w-full sm:w-72 md:w-80 lg:w-96 border-r border-slate-100 flex flex-col bg-white transition-all duration-300 shrink-0',
+  chatBase: 'h-full flex-1 flex flex-col bg-white transition-all duration-300 min-w-0',
+} as const;
 
 const createMessageId = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2, 11);
+
+const appendMessageToThread = (
+  prevMessages: Record<string, Message[]>,
+  contactId: string,
+  message: Message
+) => ({
+  ...prevMessages,
+  [contactId]: [...(prevMessages[contactId] || []), message],
+});
+
+const updateContactPreview = (
+  prevContacts: Contact[],
+  contactId: string,
+  text: string,
+  at: Date
+) =>
+  prevContacts.map((contact) =>
+    contact.id === contactId
+      ? { ...contact, lastMessage: text, lastMessageTime: at }
+      : contact
+  );
+
+const createOutgoingMessage = (text: string, at: Date): Message => ({
+  id: createMessageId(),
+  text,
+  senderId: ME_ID,
+  timestamp: at,
+  status: 'sent',
+});
+
+const createAutoReply = (recipientId: string, originalText: string, at: Date): Message => ({
+  id: createMessageId(),
+  text: `I received your message: "${originalText}". This is a simulated response.`,
+  senderId: recipientId,
+  timestamp: at,
+  status: 'delivered',
+});
 
 export default function MessagesPage() {
   const router = useRouter();
@@ -27,90 +75,59 @@ export default function MessagesPage() {
     if (!isAuthenticated) router.replace('/auth/login');
   }, [isAuthenticated, router]);
 
-  const activeContact = contacts.find(c => c.id === activeContactId) || null;
-  const activeMessages = activeContactId ? (messages[activeContactId] || []) : [];
+  const activeContact = useMemo(
+    () => contacts.find((contact) => contact.id === activeContactId) || null,
+    [contacts, activeContactId]
+  );
+  const activeMessages = useMemo(
+    () => (activeContactId ? messages[activeContactId] || [] : []),
+    [messages, activeContactId]
+  );
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = useCallback((text: string) => {
     if (!activeContactId) return;
-    const recipientId = activeContactId;
+    const timestamp = new Date();
+    const outgoingMessage = createOutgoingMessage(text, timestamp);
 
-    const newMessage: Message = {
-      id: createMessageId(),
-      text,
-      senderId: 'me',
-      timestamp: new Date(),
-      status: 'sent',
-    };
+    setMessages((prev) => appendMessageToThread(prev, activeContactId, outgoingMessage));
+    setContacts((prev) => updateContactPreview(prev, activeContactId, text, timestamp));
 
-    setMessages(prev => ({
-      ...prev,
-      [recipientId]: [...(prev[recipientId] || []), newMessage]
-    }));
-
-    // Update last message in contact list
-    setContacts(prev => prev.map(c => 
-      c.id === recipientId 
-        ? { ...c, lastMessage: text, lastMessageTime: new Date() }
-        : c
-    ));
-
-    // Simulate auto-reply
     window.setTimeout(() => {
-      const reply: Message = {
-        id: createMessageId(),
-        text: `I received your message: "${text}". This is a simulated response.`,
-        senderId: recipientId,
-        timestamp: new Date(),
-        status: 'delivered',
-      };
+      const replyTimestamp = new Date();
+      const reply = createAutoReply(activeContactId, text, replyTimestamp);
 
-      setMessages(prev => ({
-        ...prev,
-        [recipientId]: [...(prev[recipientId] || []), reply]
-      }));
-
-      setContacts(prev => prev.map(c => 
-        c.id === recipientId
-          ? { ...c, lastMessage: reply.text, lastMessageTime: new Date() }
-          : c
-      ));
-    }, 1500);
-  };
+      setMessages((prev) => appendMessageToThread(prev, activeContactId, reply));
+      setContacts((prev) =>
+        updateContactPreview(prev, activeContactId, reply.text, replyTimestamp)
+      );
+    }, AUTO_REPLY_DELAY_MS);
+  }, [activeContactId]);
 
   if (!isAuthenticated) {
-    return (
-      <div className="h-dvh w-full flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-sm text-slate-500 font-medium">Loading...</p>
-        </div>
-      </div>
-    );
+    return <AuthLoadingScreen />;
   }
 
   return (
-    <div className="h-dvh w-full flex bg-slate-100 overflow-hidden font-sans antialiased p-0 sm:p-2 lg:p-4">
-      <div className="w-full h-full flex bg-white shadow-none sm:shadow-xl sm:rounded-xl lg:rounded-2xl overflow-hidden relative sm:border border-slate-200">
-        {/* Sidebar - Contact List */}
+    <div className={LAYOUT_CLASSES.root}>
+      <div className={LAYOUT_CLASSES.shell}>
         <div className={cn(
-          "h-full w-full sm:w-72 md:w-80 lg:w-96 border-r border-slate-100 flex flex-col bg-white transition-all duration-300 shrink-0",
-          activeContactId ? "hidden sm:flex" : "flex"
+          LAYOUT_CLASSES.sidebarBase,
+          activeContactId ? 'hidden sm:flex' : 'flex'
         )}>
-          <Sidebar 
-            contacts={contacts} 
-            activeContactId={activeContactId} 
-            onSelectContact={setActiveContactId} 
+          <Sidebar
+            contacts={contacts}
+            activeContactId={activeContactId}
+            onSelectContact={setActiveContactId}
           />
         </div>
-        
-        {/* Chat Window */}
+
         <div className={cn(
-          "h-full flex-1 flex flex-col bg-white transition-all duration-300 min-w-0",
-          !activeContactId ? "hidden sm:flex" : "flex"
+          LAYOUT_CLASSES.chatBase,
+          !activeContactId ? 'hidden sm:flex' : 'flex'
         )}>
-          <ChatWindow 
-            contact={activeContact} 
-            messages={activeMessages} 
+          <ChatWindow
+            contact={activeContact}
+            messages={activeMessages}
             onSendMessage={handleSendMessage}
             onBack={() => setActiveContactId(null)}
           />
