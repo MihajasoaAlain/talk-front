@@ -1,5 +1,7 @@
-import React from 'react';
-import { Search, MoreVertical, Edit } from 'lucide-react';
+"use client";
+
+import React, { useEffect, useRef, useState } from 'react';
+import { Search, MoreVertical, Edit, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { Contact } from '../types/types';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -8,13 +10,46 @@ interface SidebarProps {
   contacts: Contact[];
   activeContactId: string | null;
   onSelectContact: (id: string) => void;
+  username?: string;
+  avatarUrl?: string;
+  onOpenProfile: () => void;
+  onOpenSettings: () => void;
+  onLogout: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ contacts, activeContactId, onSelectContact }) => {
+const getInitial = (name?: string) => (name?.trim().charAt(0) || 'U').toUpperCase();
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  contacts,
+  activeContactId,
+  onSelectContact,
+  username,
+  avatarUrl,
+  onOpenProfile,
+  onOpenSettings,
+  onLogout,
+}) => {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const displayName = username?.trim() || 'User';
+
   return (
     <div className="h-full flex flex-col bg-white">
       <div className="p-4 flex items-center justify-between">
         <h1 className="text-xl font-bold tracking-tight text-slate-800">Messages</h1>
+
         <div className="flex gap-1">
           <button className="p-2 hover:bg-indigo-50 rounded-full transition-colors text-slate-500 hover:text-indigo-600">
             <Edit size={20} />
@@ -77,6 +112,69 @@ export const Sidebar: React.FC<SidebarProps> = ({ contacts, activeContactId, onS
             </div>
           </button>
         ))}
+      </div>
+
+      <div className="border-t border-slate-100 p-4">
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2 rounded-xl p-2 transition-colors hover:bg-slate-100"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="h-8 w-8 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                  {getInitial(displayName)}
+                </span>
+              )}
+              <span className="truncate text-sm font-semibold text-slate-700">
+                {displayName}
+              </span>
+            </span>
+            <ChevronDown size={16} className="text-slate-500" />
+          </button>
+
+          {isProfileMenuOpen && (
+            <div className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  onOpenProfile();
+                }}
+              >
+                <User size={15} />
+                Profile
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  onOpenSettings();
+                }}
+              >
+                <Settings size={15} />
+                Settings
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  onLogout();
+                }}
+              >
+                <LogOut size={15} />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
