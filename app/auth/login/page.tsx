@@ -19,6 +19,11 @@ interface AuthResponse {
   refresh_token: string;
 }
 
+type UserProfile = {
+  username: string;
+  avatarUrl: string;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,6 +48,19 @@ export default function LoginPage() {
 
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("refresh_token", response.refresh_token);
+      localStorage.setItem("last_login_email", email);
+      const existingProfileRaw = localStorage.getItem("user_profile");
+      let avatarUrl = "";
+      if (existingProfileRaw) {
+        try {
+          const existingProfile = JSON.parse(existingProfileRaw) as Partial<UserProfile>;
+          avatarUrl = existingProfile.avatarUrl?.trim() || "";
+        } catch {
+          avatarUrl = "";
+        }
+      }
+      const username = email.includes("@") ? email.split("@")[0] : "User";
+      localStorage.setItem("user_profile", JSON.stringify({ username, avatarUrl }));
       document.cookie = `access_token=${response.access_token}; path=/`;
 
       setSuccess("Logged in successfully.");

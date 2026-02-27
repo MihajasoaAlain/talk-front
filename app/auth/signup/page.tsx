@@ -65,6 +65,8 @@ export default function SignupPage() {
 
       localStorage.setItem("access_token", auth.access_token);
       localStorage.setItem("refresh_token", auth.refresh_token);
+      localStorage.setItem("last_login_email", email);
+      localStorage.setItem("user_profile", JSON.stringify({ username, avatarUrl: "" }));
       document.cookie = `access_token=${auth.access_token}; path=/`;
 
       setSuccess("Account created. Redirecting...");
