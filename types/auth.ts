@@ -3,10 +3,21 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface SignupRequest {
-  name: string;
+export interface RegisterRequest {
+  username: string;
   email: string;
   password: string;
+}
+
+export interface UserPublic {
+  id: number;
+  username: string;
+  email: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  user: UserPublic;
 }
 
 export interface AuthResponse {

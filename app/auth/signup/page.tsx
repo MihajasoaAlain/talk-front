@@ -1,10 +1,81 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AuthHeader from "@/components/auth/AuthHeader";
 import FormField from "@/components/auth/FormField";
 import HelperCard from "@/components/auth/HelperCard";
 import Button from "@/components/ui/Button";
+import { apiPost } from "@/utils/api";
+import type {
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  RegisterResponse,
+} from "@/types/auth";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    const formData = new FormData(event.currentTarget);
+    const username = String(formData.get("username") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+    const termsAccepted = formData.get("terms") === "on";
+
+    if (!termsAccepted) {
+      setError("Please accept the Terms of Service and Privacy Policy.");
+      return;
+    }
+    if (username.length < 2 || username.length > 50) {
+      setError("Username must be between 2 and 50 characters.");
+      return;
+    }
+    if (password.length < 8 || password.length > 72) {
+      setError("Password must be between 8 and 72 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload: RegisterRequest = { username, email, password };
+      await apiPost<RegisterRequest, RegisterResponse>(
+        "/auth/register",
+        payload
+      );
+
+      const auth = await apiPost<LoginRequest, AuthResponse>("/auth/login", {
+        email,
+        password,
+      });
+
+      localStorage.setItem("access_token", auth.access_token);
+      localStorage.setItem("refresh_token", auth.refresh_token);
+      document.cookie = `access_token=${auth.access_token}; path=/`;
+
+      setSuccess("Account created. Redirecting...");
+      router.push("/messages");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Signup failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <AuthHeader
@@ -20,11 +91,11 @@ export default function SignupPage() {
         }
       />
 
-      <form className="space-y-5">
+      <form className="space-y-5" onSubmit={onSubmit}>
         <FormField
-          id="name"
-          label="Full name"
-          autoComplete="name"
+          id="username"
+          label="Username"
+          autoComplete="username"
           placeholder="Jordan Lee"
         />
 
@@ -63,13 +134,19 @@ export default function SignupPage() {
           I agree to the Terms of Service and Privacy Policy.
         </label>
 
-        <Button type="submit" className="w-full">
-          Create account
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Creating account..." : "Create account"}
         </Button>
       </form>
 
       <HelperCard>
-        You will receive a confirmation email to finish setting up your workspace.
+        {error ? (
+          <span className="text-red-600">{error}</span>
+        ) : success ? (
+          <span className="text-emerald-600">{success}</span>
+        ) : (
+          "Create your account to continue to Talk."
+        )}
       </HelperCard>
     </div>
   );
