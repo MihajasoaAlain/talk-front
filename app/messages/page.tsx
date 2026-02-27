@@ -7,6 +7,8 @@ import { ChatWindow } from '@/components/ChatWidow';
 import { Sidebar } from '@/components/Sidebar';
 import { AuthLoadingScreen } from '@/components/messages/AuthLoadingScreen';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api-client';
+import type { MeResponse } from '@/types/auth';
 import { Contact, Message } from '@/types/types';
 
 const ME_ID = 'me';
@@ -16,6 +18,12 @@ const PROFILE_STORAGE_KEY = 'user_profile';
 type UserProfile = {
   username: string;
   avatarUrl: string;
+};
+
+const mapMeToUserProfile = (me: MeResponse): UserProfile => {
+  const username = (me.user?.username || '').trim() || 'User';
+  const avatarUrl = (me.user?.avatarUrl || '').trim();
+  return { username, avatarUrl };
 };
 
 const LAYOUT_CLASSES = {
@@ -72,7 +80,7 @@ export default function MessagesPage() {
   const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
   const [activeContactId, setActiveContactId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Message[]>>(MOCK_MESSAGES);
-  const [userProfile] = useState<UserProfile>(() => {
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     if (typeof window === 'undefined') {
       return { username: 'User', avatarUrl: '' };
     }
@@ -102,6 +110,28 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!isAuthenticated) router.replace('/auth/login');
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let isMounted = true;
+    void apiClient
+      .get<MeResponse>('/me')
+      .then((me) => {
+        if (!isMounted) return;
+        const profile = mapMeToUserProfile(me);
+        setUserProfile(profile);
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+        if (me.user?.email) localStorage.setItem('last_login_email', me.user.email);
+      })
+      .catch(() => {
+        // Keep local fallback profile when API is unavailable.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
 
   const activeContact = useMemo(
     () => contacts.find((contact) => contact.id === activeContactId) || null,

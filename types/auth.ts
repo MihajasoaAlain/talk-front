@@ -13,6 +13,7 @@ export interface UserPublic {
   id: number;
   username: string;
   email: string;
+  avatar_url?: string;
 }
 
 export interface RegisterResponse {
@@ -31,6 +32,16 @@ export interface User {
   email: string;
   avatar?: string;
   createdAt: Date;
+}
+
+export interface MeResponse {
+  user: {
+    id: number | string;
+    username: string;
+    email: string;
+    avatarUrl?: string;
+    created_at?: string;
+  };
 }
 
 export interface RefreshTokenRequest {
